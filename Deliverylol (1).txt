@@ -1,0 +1,1341 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+
+local player = Players.LocalPlayer
+
+-- Make GUI frame draggable (supports mouse & touch)
+local function makeDraggable(frame)
+    local dragging = false
+    local dragInput = nil
+    local dragStart = nil
+    local startPos = nil
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+end
+
+-- Notification function (temporary popup)
+local function notify(text)
+    local existingGui = player.PlayerGui:FindFirstChild("NotifyGui")
+    if existingGui then existingGui:Destroy() -- Remove previous notifs
+    end
+
+    local gui = Instance.new("ScreenGui", player.PlayerGui)
+    gui.Name = "NotifyGui"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+
+    local label = Instance.new("TextLabel", gui)
+    label.Size = UDim2.new(0, 300, 0, 40)
+    label.Position = UDim2.new(1, -310, 0, 10)
+    label.AnchorPoint = Vector2.new(1, 0)
+    label.BackgroundColor3 = Color3.new(0, 0, 0)
+    label.BackgroundTransparency = 0.6
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 18
+    label.Text = text
+    label.TextWrapped = true
+
+    task.delay(2.5, function()
+        if gui then gui:Destroy() end
+    end)
+end
+
+-- Main ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PlatformUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Main panel (dark background)
+local platformPanel = Instance.new("Frame")
+platformPanel.Size = UDim2.new(0, 620, 0, 460)
+platformPanel.Position = UDim2.new(0.3, 0, 0.2, 0)
+platformPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+platformPanel.BorderSizePixel = 0
+platformPanel.Active = true
+platformPanel.Visible = false
+platformPanel.BackgroundTransparency = 1
+platformPanel.Parent = screenGui
+
+-- Create a UIStroke for the border
+local rainbowBorder = Instance.new("UIStroke")
+rainbowBorder.Parent = platformPanel
+rainbowBorder.Thickness = 3  -- You can adjust the border thickness
+rainbowBorder.Color = Color3.new(1, 0, 0)  -- Start with red
+
+-- Animate the border color through the HSV spectrum for a rainbow effect
+spawn(function()
+    local hue = 0
+    while true do
+        hue = (hue + 0.01) % 1  -- Cycle hue from 0 to 1
+        rainbowBorder.Color = Color3.fromHSV(hue, 1, 1)  -- Full saturation & value for bright rainbow colors
+        wait(0.05)  -- Speed of color change (adjust as desired)
+    end
+end)
+
+
+-- Meme image at the top
+local memeImage = Instance.new("ImageLabel", platformPanel)
+memeImage.Size = UDim2.new(1, 0, 0, 100)
+memeImage.Position = UDim2.new(0, 0, 0, 0)
+memeImage.BackgroundTransparency = 1
+memeImage.Image = "rbxassetid://11818627075"
+memeImage.ScaleType = Enum.ScaleType.Fit
+memeImage.ZIndex = 10
+memeImage.Active = false -- does not block drag
+
+makeDraggable(platformPanel)
+
+-- UI toggle button (hidden until popup finished)
+local uiToggle = Instance.new("TextButton")
+uiToggle.Size = UDim2.new(0, 120, 0, 35)
+uiToggle.Position = UDim2.new(0, 10, 1, -45)
+uiToggle.BackgroundColor3 = Color3.new(0, 0, 0)
+uiToggle.TextColor3 = Color3.new(1, 1, 1)
+uiToggle.Font = Enum.Font.SourceSansBold
+uiToggle.TextSize = 18
+uiToggle.Text = "Toggle UI"
+uiToggle.Visible = false
+uiToggle.Parent = screenGui
+makeDraggable(uiToggle)
+
+-- Blur effect when UI is active
+local blur = Instance.new("BlurEffect")
+blur.Size = 0
+blur.Parent = Lighting
+
+local uiVisible = false
+local toggleTweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+
+local function toggleGUI(show)
+    if show then
+        platformPanel.Visible = true
+        TweenService:Create(platformPanel, toggleTweenInfo, {BackgroundTransparency = 0}):Play()
+        TweenService:Create(blur, toggleTweenInfo, {Size = 24}):Play()
+    else
+        local hideTween = TweenService:Create(platformPanel, toggleTweenInfo, {BackgroundTransparency = 1})
+        hideTween:Play()
+        hideTween.Completed:Connect(function()
+            if not uiVisible then
+                platformPanel.Visible = false
+            end
+        end)
+        TweenService:Create(blur, toggleTweenInfo, {Size = 0}):Play()
+    end
+end
+
+uiToggle.MouseButton1Click:Connect(function()
+    uiVisible = not uiVisible
+    toggleGUI(uiVisible)
+end)
+
+-- Tabs
+local tabs = {"Update Logs", "Main", "Misc", "Player", "Tech", "Combo", "Other", "Moveset"}
+local tabButtons = {}
+local tabContents = {}
+
+local tabBar = Instance.new("Frame", platformPanel)
+tabBar.Size = UDim2.new(0, 100, 1, 0)
+tabBar.Position = UDim2.new(0, 0, 0, 0)
+tabBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+
+for i, name in ipairs(tabs) do
+    local btn = Instance.new("TextButton", tabBar)
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.Position = UDim2.new(0, 0, 0, (i - 1) * 40)
+    btn.BackgroundColor3 = Color3.new(0, 0, 0)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 18
+    btn.Text = (name == "Update Logs" and "📢 Update Logs") or name
+    tabButtons[name] = btn
+
+    local content = Instance.new("Frame", platformPanel)
+    content.Size = UDim2.new(1, -100, 1, 0)
+    content.Position = UDim2.new(0, 100, 0, 0)
+    content.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    content.Visible = false
+    tabContents[name] = content
+end
+
+local updateText = [[
+🚀 New Features & Improvements:
+
+✨ Multi-layer No Stun with no slow effect for smooth gameplay
+🖼️ Meme image added at the top of the GUI
+🔘 Smooth toggle button with full screen blur effect
+📢 Updated UI with fade-in/out animations
+🐞 Bug fixes and performance optimizations
+➕ Added some features in tech tab
+✅ No errors or bugs
+➕ Added Touch fling tech in tech tab
+🔥 Added jump power on player tab
+🎮 New Moveset tab with Invisible Table Flip feature
+🌈 Rainbow animated border around the main panel
+🖱️ Draggable windows and buttons for better usability
+🔒 Improved error handling and safe script loading
+💬 Notifications system enhanced for clarity and timing
+👥 Active Discord communities - join now!
+🌟 Stay tuned for more exciting updates!
+
+✨ Added Good Camlock feature in Other tab
+⚡ Optimized dropdown animations for better experience
+🔧 Improved script loading reliability
+🎨 Enhanced UI aesthetics with subtle effects
+🎯 Added player selection and farming improvements
+🔒 Increased security measures on external loads
+
+🆕 NEW FEATURES:
+🔥 Added "Auto Uppercut" feature in Other tab for automatic combat combos
+⚙️ Implemented customizable UI toggle button with drag support
+📡 Improved network script calls with safer pcall wrapping
+🌍 Added support for mobile devices with toggle button UI visibility
+🎉 Enhanced "Free Emote" feature in Misc tab for more emotes
+💥 Revamped Tech tab with new tech scripts including Humbled and Instant Twisted
+🎭 Added Garou and Saitama moveset dropdowns with multiple skins
+
+🐛 BUG FIXES:
+✔ Fixed UI overlapping issues when toggling tabs rapidly
+✔ Resolved rare crash when loading external scripts offline
+✔ Corrected scrollbar height calculation for update logs text
+✔ Improved input detection for player farming and orbit distance control
+
+📅 UPCOMING:
+⏳ Working on an advanced combat combo system for Combo tab
+🖌️ UI redesign planned for better accessibility and color themes
+🎮 Planned integration with Discord presence and voice chat commands
+🛡️ Security audit ongoing for script injection and external loads
+
+✅ Join our Discord to get the most overpower script 🔥
+]]
+
+
+
+local updateFrame = tabContents["Update Logs"]
+
+-- Create a ScrollingFrame as container
+local scrollFrame = Instance.new("ScrollingFrame", updateFrame)
+scrollFrame.Size = UDim2.new(1, -20, 1, -20)
+scrollFrame.Position = UDim2.new(0, 10, 0, 10)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 8
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)  -- Will be updated below
+scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y  -- Auto-resize vertically based on content
+scrollFrame.BorderSizePixel = 0
+
+-- Create a TextLabel inside the ScrollingFrame to hold the update text
+local logLabel = Instance.new("TextLabel", scrollFrame)
+logLabel.Size = UDim2.new(1, -20, 0, 0)  -- Width full minus padding, height will be automatic
+logLabel.Position = UDim2.new(0, 10, 0, 0)
+logLabel.BackgroundTransparency = 1
+logLabel.TextWrapped = true
+logLabel.TextColor3 = Color3.new(1, 1, 1)
+logLabel.Font = Enum.Font.SourceSansBold
+logLabel.TextSize = 17
+logLabel.TextXAlignment = Enum.TextXAlignment.Left
+logLabel.TextYAlignment = Enum.TextYAlignment.Top
+logLabel.Text = updateText
+logLabel.AutomaticSize = Enum.AutomaticSize.Y  -- Auto adjust height based on text content
+
+-- Make sure CanvasSize is large enough to enable scrolling if text is long
+-- This happens automatically due to AutomaticCanvasSize set on scrollFrame
+
+
+-- Discord Buttons in Update Logs tab
+local corexBtn = Instance.new("TextButton", updateFrame)
+corexBtn.Size = UDim2.new(0, 300, 0, 40)
+corexBtn.Position = UDim2.new(0, 10, 1, -100)
+corexBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+corexBtn.TextColor3 = Color3.new(1, 1, 1)
+corexBtn.Font = Enum.Font.SourceSansBold
+corexBtn.TextSize = 18
+corexBtn.Text = "Join Corex Hub Official Discord"
+
+corexBtn.MouseButton1Click:Connect(function()
+    setclipboard("https://discord.gg/Vvf8hf5q")
+    notify("Corex Hub Discord link copied to clipboard!")
+end)
+
+local medBtn = Instance.new("TextButton", updateFrame)
+medBtn.Size = UDim2.new(0, 300, 0, 40)
+medBtn.Position = UDim2.new(0, 10, 1, -50)
+medBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+medBtn.TextColor3 = Color3.new(1, 1, 1)
+medBtn.Font = Enum.Font.SourceSansBold
+medBtn.TextSize = 18
+medBtn.Text = "Join Med Discord"
+
+medBtn.MouseButton1Click:Connect(function()
+    setclipboard("https://discord.gg/4hXUGyzf")
+    notify("Med Discord link copied to clipboard!")
+end)
+
+-- Show default tab
+for name, content in pairs(tabContents) do
+    if name == "Update Logs" then
+        content.Visible = true
+        tabButtons[name].BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    else
+        content.Visible = false
+        tabButtons[name].BackgroundColor3 = Color3.new(0, 0, 0)
+    end
+end
+
+-- Tab buttons click logic
+for name, btn in pairs(tabButtons) do
+    btn.MouseButton1Click:Connect(function()
+        for n, content in pairs(tabContents) do
+            if n == name then
+                content.Visible = true
+                content.BackgroundTransparency = 1
+                TweenService:Create(content, TweenInfo.new(0.35, Enum.EasingStyle.Sine), {BackgroundTransparency = 0}):Play()
+                tabButtons[n].BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            else
+                TweenService:Create(content, TweenInfo.new(0.35, Enum.EasingStyle.Sine), {BackgroundTransparency = 1}):Play()
+                task.delay(0.35, function()
+                    content.Visible = false
+                end)
+                tabButtons[n].BackgroundColor3 = Color3.new(0, 0, 0)
+            end
+        end
+    end)
+end
+
+-- Main tab feature buttons
+local mainTab = tabContents.Main
+local noStunToggle = Instance.new("TextButton", mainTab)
+noStunToggle.Size = UDim2.new(0, 40, 0, 40)
+noStunToggle.Position = UDim2.new(0, 20, 0, 20)
+noStunToggle.BackgroundColor3 = Color3.new(0, 0, 0)
+noStunToggle.Text = ""
+noStunToggle.AutoButtonColor = false
+
+local noStunLabel = Instance.new("TextLabel", mainTab)
+noStunLabel.Size = UDim2.new(0, 120, 0, 40)
+noStunLabel.Position = UDim2.new(0, 70, 0, 20)
+noStunLabel.BackgroundTransparency = 1
+noStunLabel.TextColor3 = Color3.new(1, 1, 1)
+noStunLabel.Font = Enum.Font.SourceSansBold
+noStunLabel.TextSize = 20
+noStunLabel.TextXAlignment = Enum.TextXAlignment.Left
+noStunLabel.Text = "No Stun (OP)"
+
+local noStun = false
+local desiredSpeed = 26
+local defaultSpeed = 16
+local speedConns = {}
+
+local function applySpeed()
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if hum and hum.WalkSpeed ~= desiredSpeed then
+        hum.WalkSpeed = desiredSpeed
+    end
+end
+
+local function resetSpeed()
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = defaultSpeed
+    end
+end
+
+local function clearSpeedConns()
+    for _, conn in pairs(speedConns) do
+        conn:Disconnect()
+    end
+    speedConns = {}
+end
+
+noStunToggle.MouseButton1Click:Connect(function()
+    noStun = not noStun
+    noStunToggle.BackgroundColor3 = noStun and Color3.fromRGB(0, 120, 255) or Color3.new(0, 0, 0)
+    if noStun then
+        clearSpeedConns()
+        for _ = 1, 3 do
+            table.insert(speedConns, RunService.RenderStepped:Connect(applySpeed))
+        end
+        notify("No Stun ON")
+    else
+        clearSpeedConns()
+        resetSpeed()
+        notify("No Stun OFF")
+    end
+end)
+
+player.CharacterAdded:Connect(function()
+    task.wait(0.1)
+    if noStun then
+        applySpeed()
+    else
+        resetSpeed()
+    end
+end)
+
+local speedLabel = Instance.new("TextLabel", mainTab)
+speedLabel.Size = UDim2.new(0, 160, 0, 30)
+speedLabel.Position = UDim2.new(0, 70, 0, 70)
+speedLabel.BackgroundTransparency = 1
+speedLabel.TextColor3 = Color3.new(1, 1, 1)
+speedLabel.Font = Enum.Font.SourceSans
+speedLabel.TextSize = 18
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+speedLabel.Text = "Speed: "..desiredSpeed
+
+local minusSpeed = Instance.new("TextButton", mainTab)
+minusSpeed.Size = UDim2.new(0, 30, 0, 30)
+minusSpeed.Position = UDim2.new(0, 10, 0, 70)
+minusSpeed.BackgroundColor3 = Color3.new(0, 0, 0)
+minusSpeed.Text = "-"
+minusSpeed.TextColor3 = Color3.new(1, 1, 1)
+minusSpeed.Font = Enum.Font.SourceSansBold
+
+local plusSpeed = Instance.new("TextButton", mainTab)
+plusSpeed.Size = UDim2.new(0, 30, 0, 30)
+plusSpeed.Position = UDim2.new(0, 200, 0, 70)
+plusSpeed.BackgroundColor3 = Color3.new(0, 0, 0)
+plusSpeed.Text = "+"
+plusSpeed.TextColor3 = Color3.new(1, 1, 1)
+plusSpeed.Font = Enum.Font.SourceSansBold
+
+minusSpeed.MouseButton1Click:Connect(function()
+    desiredSpeed = math.max(20, desiredSpeed - 2)
+    speedLabel.Text = "Speed: "..desiredSpeed
+    if noStun then applySpeed() end
+end)
+
+plusSpeed.MouseButton1Click:Connect(function()
+    desiredSpeed = math.min(100, desiredSpeed + 2)
+    speedLabel.Text = "Speed: "..desiredSpeed
+    if noStun then applySpeed() end
+end)
+
+local aimBtn = Instance.new("TextButton", mainTab)
+aimBtn.Size = UDim2.new(0, 220, 0, 40)
+aimBtn.Position = UDim2.new(0, 20, 0, 120)
+aimBtn.BackgroundColor3 = Color3.new(0, 0, 0)
+aimBtn.Text = "Load Aimlock"
+aimBtn.TextColor3 = Color3.new(1, 1, 1)
+aimBtn.Font = Enum.Font.SourceSansBold
+aimBtn.TextSize = 20
+
+aimBtn.MouseButton1Click:Connect(function()
+    local success, _ = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Cyborg883/TSB/main/CombatGui"))()
+    end)
+    notify(success and "Aimlock Loaded!" or "Aimlock Failed")
+end)
+
+local dunkedGarouActive = false  -- Toggle state
+
+-- Add button in the Main tab, positioned next to No Stun toggle or suitable place
+local dunkedGarouToggle = Instance.new("TextButton", mainTab)
+dunkedGarouToggle.Size = UDim2.new(0, 40, 0, 40)
+dunkedGarouToggle.Position = UDim2.new(0, 20, 0, 120)  -- Adjust position as needed
+dunkedGarouToggle.BackgroundColor3 = Color3.new(0, 0, 0)  -- Default black
+dunkedGarouToggle.Text = ""
+dunkedGarouToggle.AutoButtonColor = false
+
+local dunkedGarouLabel = Instance.new("TextLabel", mainTab)
+dunkedGarouLabel.Size = UDim2.new(0, 160, 0, 40)
+dunkedGarouLabel.Position = UDim2.new(0, 70, 0, 120)
+dunkedGarouLabel.BackgroundTransparency = 1
+dunkedGarouLabel.TextColor3 = Color3.new(1, 1, 1)
+dunkedGarouLabel.Font = Enum.Font.SourceSansBold
+dunkedGarouLabel.TextSize = 20
+dunkedGarouLabel.TextXAlignment = Enum.TextXAlignment.Left
+dunkedGarouLabel.Text = "Dunked Garou more damage"
+
+-- Reuse your onAnimation function as defined (copy it if necessary)
+local function onAnimation(id, func)
+    local id = tostring(id):gsub("rbxassetid://", "")
+
+    local function connectHumanoid(humanoid)
+        if humanoid then
+            humanoid.AnimationPlayed:Connect(function(v)
+                local vID = v.Animation.AnimationId:gsub("rbxassetid://", "")
+                if id == vID then
+                    func(v)
+                end
+            end)
+        end
+    end
+
+    local player = game:GetService("Players").LocalPlayer
+    local char = player.Character
+    connectHumanoid(char and char:FindFirstChildOfClass("Humanoid"))
+
+    player.CharacterAdded:Connect(function(char)
+        connectHumanoid(char:WaitForChild("Humanoid"))
+    end)
+end
+
+-- Define effect trigger on the specific animation if toggle is ON
+onAnimation("12296113986", function(animation)
+    if dunkedGarouActive then
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/tamarixr/tamhub/main/woa.lua"))()
+        end)
+        if success then
+            notify("Dunked Garou effect activated!")
+        else
+            notify("Failed to activate Dunked Garou effect: " .. tostring(err))
+            warn("Dunked Garou error:", err)
+        end
+    end
+end)
+
+-- Button click toggles the feature ON/OFF and button color
+dunkedGarouToggle.MouseButton1Click:Connect(function()
+    dunkedGarouActive = not dunkedGarouActive
+    dunkedGarouToggle.BackgroundColor3 = dunkedGarouActive and Color3.fromRGB(0, 120, 255) or Color3.new(0, 0, 0)
+    notify("Dunked Garou more damage " .. (dunkedGarouActive and "ON" or "OFF"))
+end)
+
+
+local miscTab = tabContents["Misc"]
+
+local teleportBtn = Instance.new("TextButton", miscTab)
+teleportBtn.Size = UDim2.new(0, 300, 0, 50)
+teleportBtn.Position = UDim2.new(0, 20, 0, 20)
+teleportBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+teleportBtn.TextColor3 = Color3.new(1, 1, 1)
+teleportBtn.Font = Enum.Font.SourceSansBold
+teleportBtn.TextSize = 22
+teleportBtn.Text = "Teleport/Bringer/fun"
+
+teleportBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/gamerscripter90/Teleportbringer/main/teleportbringerop20%25.lua.txt"))()
+    end)
+    if success then
+        notify("Teleport/Bringer/fun loaded!")
+    else
+        notify("Failed to load Teleport/Bringer/fun: " .. tostring(err))
+        warn("Teleport/Bringer/fun error:", err)
+    end
+end)
+
+local freeEmoteBtn = Instance.new("TextButton", miscTab)
+freeEmoteBtn.Size = UDim2.new(0, 300, 0, 50)
+freeEmoteBtn.Position = UDim2.new(0, 20, 0, 80)
+freeEmoteBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+freeEmoteBtn.TextColor3 = Color3.new(1, 1, 1)
+freeEmoteBtn.Font = Enum.Font.SourceSansBold
+freeEmoteBtn.TextSize = 22
+freeEmoteBtn.Text = "Free Emote"
+
+freeEmoteBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Cyborg883/EmoteGui/refs/heads/main/Protected_4900496055951847.lua"))()
+    end)
+    if success then
+        notify("Free Emote loaded!")
+    else
+        notify("Failed to load Free Emote: " .. tostring(err))
+        warn("Free Emote error:", err)
+    end
+end)
+
+local divineFormEmoteBtn = Instance.new("TextButton", miscTab)
+divineFormEmoteBtn.Size = UDim2.new(0, 300, 0, 50)
+divineFormEmoteBtn.Position = UDim2.new(0, 20, 0, 140)  -- Moved up slightly to maintain consistent spacing
+divineFormEmoteBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+divineFormEmoteBtn.TextColor3 = Color3.new(1, 1, 1)
+divineFormEmoteBtn.Font = Enum.Font.SourceSansBold
+divineFormEmoteBtn.TextSize = 22
+divineFormEmoteBtn.Text = "Divine form emote free"
+
+divineFormEmoteBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://pastefy.app/0wA55a3g/raw"))()
+    end)
+    if success then
+        notify("Divine form emote free loaded!")
+    else
+        notify("Failed to load Divine form emote free: " .. tostring(err))
+        warn("Divine form emote free error:", err)
+    end
+end)
+
+
+
+-- Player tab
+local playerTab = tabContents.Player
+local playersList = {}
+local currentIndex = 0
+local selectedPlayer = nil
+
+local selectBtn = Instance.new("TextButton", playerTab)
+selectBtn.Size = UDim2.new(0, 220, 0, 40)
+selectBtn.Position = UDim2.new(0, 20, 0, 20)
+selectBtn.BackgroundColor3 = Color3.new(0, 0, 0)
+selectBtn.TextColor3 = Color3.new(1, 1, 1)
+selectBtn.Font = Enum.Font.SourceSansBold
+selectBtn.TextSize = 20
+selectBtn.Text = "Select Player"
+
+selectBtn.MouseButton1Click:Connect(function()
+    playersList = Players:GetPlayers()
+    if #playersList == 0 then return end
+    currentIndex = (currentIndex % #playersList) + 1
+    if playersList[currentIndex] == player then
+        currentIndex = (currentIndex % #playersList) + 1
+    end
+    selectedPlayer = playersList[currentIndex]
+    selectBtn.Text = "Target: " .. selectedPlayer.Name
+    notify("Selected " .. selectedPlayer.Name)
+end)
+
+RunService.RenderStepped:Connect(function()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr.Character and plr.Character:FindFirstChild("Head") then
+            plr.Character.Head.BrickColor = (plr == selectedPlayer and BrickColor.new("Institutional white")) or BrickColor.new("Medium stone grey")
+        end
+    end
+end)
+
+local farmToggle = Instance.new("TextButton", playerTab)
+farmToggle.Size = UDim2.new(0, 40, 0, 40)
+farmToggle.Position = UDim2.new(0, 20, 0, 80)
+farmToggle.BackgroundColor3 = Color3.new(0, 0, 0)
+
+local farmLabel = Instance.new("TextLabel", playerTab)
+farmLabel.Size = UDim2.new(0, 140, 0, 40)
+farmLabel.Position = UDim2.new(0, 70, 0, 80)
+farmLabel.BackgroundTransparency = 1
+farmLabel.TextColor3 = Color3.new(1, 1, 1)
+farmLabel.Font = Enum.Font.SourceSansBold
+farmLabel.TextSize = 20
+farmLabel.TextXAlignment = Enum.TextXAlignment.Left
+farmLabel.Text = "Farm Player"
+
+local farming = false
+local farmConn = nil
+local orbitDistance = 10
+
+farmToggle.MouseButton1Click:Connect(function()
+    if not selectedPlayer then
+        notify("Select a player first!")
+        return
+    end
+    farming = not farming
+    farmToggle.BackgroundColor3 = farming and Color3.fromRGB(0, 120, 255) or Color3.new(0, 0, 0)
+    if farming then
+        farmConn = RunService.RenderStepped:Connect(function()
+            local myHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            local tgtHRP = selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if myHRP and tgtHRP then
+                myHRP.CFrame = CFrame.new(tgtHRP.Position - tgtHRP.CFrame.LookVector * orbitDistance, tgtHRP.Position)
+            end
+        end)
+        notify("Started Farming " .. selectedPlayer.Name)
+    else
+        if farmConn then farmConn:Disconnect() farmConn = nil end
+        notify("Stopped Farming")
+    end
+end)
+
+local orbitLabel = Instance.new("TextLabel", playerTab)
+orbitLabel.Size = UDim2.new(0, 160, 0, 30)
+orbitLabel.Position = UDim2.new(0, 70, 0, 140)
+orbitLabel.BackgroundTransparency = 1
+orbitLabel.TextColor3 = Color3.new(1, 1, 1)
+orbitLabel.Font = Enum.Font.SourceSans
+orbitLabel.TextSize = 18
+orbitLabel.TextXAlignment = Enum.TextXAlignment.Left
+orbitLabel.Text = "Orbit Dist: " .. orbitDistance
+
+local minusOrbit = Instance.new("TextButton", playerTab)
+minusOrbit.Size = UDim2.new(0, 30, 0, 30)
+minusOrbit.Position = UDim2.new(0, 10, 0, 140)
+minusOrbit.BackgroundColor3 = Color3.new(0, 0, 0)
+minusOrbit.Text = "-"
+minusOrbit.TextColor3 = Color3.new(1, 1, 1)
+minusOrbit.Font = Enum.Font.SourceSansBold
+
+local plusOrbit = Instance.new("TextButton", playerTab)
+plusOrbit.Size = UDim2.new(0, 30, 0, 30)
+plusOrbit.Position = UDim2.new(0, 200, 0, 140)
+plusOrbit.BackgroundColor3 = Color3.new(0, 0, 0)
+plusOrbit.Text = "+"
+plusOrbit.TextColor3 = Color3.new(1, 1, 1)
+plusOrbit.Font = Enum.Font.SourceSansBold
+
+minusOrbit.MouseButton1Click:Connect(function()
+    orbitDistance = math.max(1, orbitDistance - 1)
+    orbitLabel.Text = "Orbit Dist: " .. orbitDistance
+end)
+
+plusOrbit.MouseButton1Click:Connect(function()
+    orbitDistance = math.min(20, orbitDistance + 1)
+    orbitLabel.Text = "Orbit Dist: " .. orbitDistance
+end)
+
+local jumpPowerLabel = Instance.new("TextLabel", playerTab)
+jumpPowerLabel.Size = UDim2.new(0, 120, 0, 40)
+jumpPowerLabel.Position = UDim2.new(0, 70, 0, 190)
+jumpPowerLabel.BackgroundTransparency = 1
+jumpPowerLabel.TextColor3 = Color3.new(1, 1, 1)
+jumpPowerLabel.Font = Enum.Font.SourceSansBold
+jumpPowerLabel.TextSize = 20
+jumpPowerLabel.TextXAlignment = Enum.TextXAlignment.Left
+jumpPowerLabel.Text = "Jump Power:"
+local jumpPowerInput = Instance.new("TextBox", playerTab)
+jumpPowerInput.Size = UDim2.new(0, 100, 0, 40)
+jumpPowerInput.Position = UDim2.new(0, 200, 0, 190)
+jumpPowerInput.BackgroundColor3 = Color3.new(0, 0, 0)
+jumpPowerInput.TextColor3 = Color3.new(1, 1, 1)
+jumpPowerInput.Font = Enum.Font.SourceSansBold
+jumpPowerInput.TextSize = 20
+jumpPowerInput.ClearTextOnFocus = false
+jumpPowerInput.PlaceholderText = "Enter number"
+
+local function setJumpPower(value)
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        local clampedValue = math.clamp(value, 10, 150)
+        hum.JumpPower = clampedValue
+        notify("Jump Power set to " .. clampedValue)
+    end
+end
+
+jumpPowerInput.FocusLost:Connect(function(enterPressed)
+    local num = tonumber(jumpPowerInput.Text)
+    if num then
+        setJumpPower(num)
+    else
+        notify("Invalid number for Jump Power")
+    end
+end)
+
+player.CharacterAdded:Connect(function()
+    task.wait(0.1)
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.JumpPower = 50
+    end
+end)
+
+-- Tech tab buttons
+local techTab = tabContents.Tech  -- Ensure this exists
+
+-- Humbled tech moved to the top
+local humbledTechBtn = Instance.new("TextButton", techTab)
+humbledTechBtn.Size = UDim2.new(0, 300, 0, 50)
+humbledTechBtn.Position = UDim2.new(0, 20, 0, 20) -- Top of the Tech tab
+humbledTechBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+humbledTechBtn.TextColor3 = Color3.new(1, 1, 1)
+humbledTechBtn.Font = Enum.Font.SourceSansBold
+humbledTechBtn.TextSize = 22
+humbledTechBtn.Text = "Humbled tech"
+
+local descriptionLabel = Instance.new("TextLabel", techTab)
+descriptionLabel.Size = UDim2.new(0, 280, 0, 30)
+descriptionLabel.Position = UDim2.new(0, 20, 0, 75) -- Below the Humbled tech button
+descriptionLabel.BackgroundTransparency = 1
+descriptionLabel.TextColor3 = Color3.new(1, 1, 1)
+descriptionLabel.Font = Enum.Font.SourceSans
+descriptionLabel.TextSize = 18
+descriptionLabel.Text = "m1x3 uppercut"
+descriptionLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+humbledTechBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/MerebennieOfficial/ExoticJn/refs/heads/main/Dash%20Tech"))()
+    end)
+    if success then
+        notify("Humbled tech loaded!")
+    else
+        notify("Failed to load Humbled tech: " .. tostring(err))
+        warn("Humbled tech error:", err)
+    end
+end)
+
+-- Move the other buttons down so they don't overlap:
+
+local touchFlingBtn = Instance.new("TextButton", techTab)
+touchFlingBtn.Size = UDim2.new(0, 300, 0, 50)
+touchFlingBtn.Position = UDim2.new(0, 20, 0, 110)  -- Moved down from 20 to 110
+touchFlingBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+touchFlingBtn.TextColor3 = Color3.new(1, 1, 1)
+touchFlingBtn.Font = Enum.Font.SourceSansBold
+touchFlingBtn.TextSize = 22
+touchFlingBtn.Text = "Touch Fling Tech OP"
+
+touchFlingBtn.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://pastefy.app/h1DavkVH/raw", true))()
+end)
+
+
+local instantTwistedBtn = Instance.new("TextButton", techTab)
+instantTwistedBtn.Size = UDim2.new(0, 300, 0, 50)
+instantTwistedBtn.Position = UDim2.new(0, 20, 0, 180)  -- Moved down from 90 to 180
+instantTwistedBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+instantTwistedBtn.TextColor3 = Color3.new(1, 1, 1)
+instantTwistedBtn.Font = Enum.Font.SourceSansBold
+instantTwistedBtn.TextSize = 22
+instantTwistedBtn.Text = "Instant Twisted"
+
+instantTwistedBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Cyborg883/InstantTwistedRevamp/refs/heads/main/Protected_7455521176683315.lua"))()
+    end)
+    if success then
+        notify("Instant Twisted Loaded!")
+    else
+        notify("Failed to load Instant Twisted: " .. tostring(err))
+    end
+end)
+
+local techTab = tabContents.Tech  -- Reference the Tech tab Frame
+
+-- Supa tech button
+local supaTechBtn = Instance.new("TextButton", techTab)
+supaTechBtn.Size = UDim2.new(0, 300, 0, 50)
+supaTechBtn.Position = UDim2.new(0, 20, 0, 300)  -- Adjust Y position so it doesn't overlap existing buttons
+supaTechBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+supaTechBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+supaTechBtn.Font = Enum.Font.SourceSansBold
+supaTechBtn.TextSize = 22
+supaTechBtn.Text = "Supa tech"
+
+-- Description label
+local supaTechDesc = Instance.new("TextLabel", techTab)
+supaTechDesc.Size = UDim2.new(0, 300, 0, 30)
+supaTechDesc.Position = UDim2.new(0, 20, 0, 355)  -- Just below the button
+supaTechDesc.BackgroundTransparency = 1
+supaTechDesc.TextColor3 = Color3.fromRGB(200, 200, 200)
+supaTechDesc.Font = Enum.Font.SourceSans
+supaTechDesc.TextSize = 16
+supaTechDesc.Text = "PING BASED 100 OR 120"
+supaTechDesc.TextWrapped = true
+
+supaTechBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://pastefy.app/XlogBVV3/raw"))()
+    end)
+    if success then
+        notify("Supa tech loaded!")
+    else
+        notify("Failed to load Supa tech: " .. tostring(err))
+        warn("Supa tech error:", err)
+    end
+end)
+
+
+local comboTab = tabContents.Combo  -- Reference the Combo tab Frame
+
+-- Auto Kyoto combo button
+local autoKyotoComboBtn = Instance.new("TextButton", comboTab)
+autoKyotoComboBtn.Size = UDim2.new(0, 300, 0, 50)
+autoKyotoComboBtn.Position = UDim2.new(0, 20, 0, 20)  -- Adjust Y position as needed
+autoKyotoComboBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+autoKyotoComboBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoKyotoComboBtn.Font = Enum.Font.SourceSansBold
+autoKyotoComboBtn.TextSize = 22
+autoKyotoComboBtn.Text = "Auto Kyoto combo"
+
+-- Description label for the button
+local kyotoDescLabel = Instance.new("TextLabel", comboTab)
+kyotoDescLabel.Size = UDim2.new(0, 300, 0, 30)
+kyotoDescLabel.Position = UDim2.new(0, 20, 0, 75)  -- Just below the button
+kyotoDescLabel.BackgroundTransparency = 1
+kyotoDescLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+kyotoDescLabel.Font = Enum.Font.SourceSans
+kyotoDescLabel.TextSize = 16
+kyotoDescLabel.Text = "If your ping is 150 or 200, it will work the most"
+kyotoDescLabel.TextWrapped = true
+
+autoKyotoComboBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://pastefy.app/XOtKHIz0/raw"))()
+    end)
+    if success then
+        notify("Auto Kyoto combo loaded!")
+    else
+        notify("Failed to load Auto Kyoto combo: " .. tostring(err))
+        warn("Auto Kyoto combo error:", err)
+    end
+end)
+
+-- 5 character auto combo button
+local autoCombo5CharBtn = Instance.new("TextButton", comboTab)
+autoCombo5CharBtn.Size = UDim2.new(0, 300, 0, 50)
+autoCombo5CharBtn.Position = UDim2.new(0, 20, 0, 240)  -- Adjust Y position to avoid overlap
+autoCombo5CharBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+autoCombo5CharBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoCombo5CharBtn.Font = Enum.Font.SourceSansBold
+autoCombo5CharBtn.TextSize = 22
+autoCombo5CharBtn.Text = "5 character auto combo"
+
+autoCombo5CharBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://pastefy.app/XMo6AL0O/raw"))()
+    end)
+    if success then
+        notify("5 character auto combo loaded!")
+    else
+        notify("Failed to load 5 character auto combo: " .. tostring(err))
+        warn("5 character auto combo error:", err)
+    end
+end)
+
+
+
+local movesetTab = tabContents["Moveset"]
+
+-- Invisible Table Flip button (always visible near top)
+local invisibleTableFlipBtn = Instance.new("TextButton", movesetTab)
+invisibleTableFlipBtn.Size = UDim2.new(0, 300, 0, 50)
+invisibleTableFlipBtn.Position = UDim2.new(0, 20, 0, 20)
+invisibleTableFlipBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+invisibleTableFlipBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+invisibleTableFlipBtn.Font = Enum.Font.SourceSansBold
+invisibleTableFlipBtn.TextSize = 22
+invisibleTableFlipBtn.Text = "Invisible Table Flip"
+invisibleTableFlipBtn.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://pastefy.app/Ixa2nA4Z/raw"))()
+end)
+
+-- Common tween info
+local tweenDuration = 0.3
+local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+
+------------------------------------------------------------------
+-- Saitama moveset dropdown and sub-buttons
+------------------------------------------------------------------
+
+local saitamaDropdownY = 90 -- Y position of dropdown button
+local hiddenY = saitamaDropdownY -- hidden Y position for sub-buttons (overlapping dropdown)
+local visibleYJun = 150
+local visibleYSerious = 210
+local visibleYHell = 270 -- new Hell moveset button position (60 px spacing)
+
+-- Saitama dropdown button
+local saitamaDropdownBtn = Instance.new("TextButton", movesetTab)
+saitamaDropdownBtn.Size = UDim2.new(0, 300, 0, 50)
+saitamaDropdownBtn.Position = UDim2.new(0, 20, 0, saitamaDropdownY)
+saitamaDropdownBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+saitamaDropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+saitamaDropdownBtn.Font = Enum.Font.SourceSansBold
+saitamaDropdownBtn.TextSize = 22
+saitamaDropdownBtn.Text = "Saitama moveset ⬇️"
+
+-- Jun moveset button
+local junMovesetBtn = Instance.new("TextButton", movesetTab)
+junMovesetBtn.Size = UDim2.new(0, 300, 0, 50)
+junMovesetBtn.Position = UDim2.new(0, 20, 0, hiddenY)
+junMovesetBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+junMovesetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+junMovesetBtn.Font = Enum.Font.SourceSansBold
+junMovesetBtn.TextSize = 22
+junMovesetBtn.Text = "Jun moveset"
+junMovesetBtn.Visible = false
+junMovesetBtn.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/Kenjihin69/Kenjihin69/refs/heads/main/Tp%20exploit%20saitama%20to%20jun'))()
+end)
+
+-- Serious Saitama moveset button
+local seriousSaitamaBtn = Instance.new("TextButton", movesetTab)
+seriousSaitamaBtn.Size = UDim2.new(0, 300, 0, 50)
+seriousSaitamaBtn.Position = UDim2.new(0, 20, 0, hiddenY)
+seriousSaitamaBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+seriousSaitamaBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+seriousSaitamaBtn.Font = Enum.Font.SourceSansBold
+seriousSaitamaBtn.TextSize = 22
+seriousSaitamaBtn.Text = "Serious Saitama moveset"
+seriousSaitamaBtn.Visible = false
+seriousSaitamaBtn.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGetAsync("https://github.com/sparksnaps/Saiatama/raw/refs/heads/main/Lua"))()
+end)
+
+-- Hell moveset button (new feature)
+local hellMovesetBtn = Instance.new("TextButton", movesetTab)
+hellMovesetBtn.Size = UDim2.new(0, 300, 0, 50)
+hellMovesetBtn.Position = UDim2.new(0, 20, 0, hiddenY)
+hellMovesetBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+hellMovesetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+hellMovesetBtn.Font = Enum.Font.SourceSansBold
+hellMovesetBtn.TextSize = 22
+hellMovesetBtn.Text = "Hell moveset"
+hellMovesetBtn.Visible = false
+hellMovesetBtn.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/HellishAgem/HellishMovesetCutscene/refs/heads/main/Protected_6748082827088148.txt"))()
+end)
+
+local saitamaDropdownExpanded = false
+saitamaDropdownBtn.MouseButton1Click:Connect(function()
+    saitamaDropdownExpanded = not saitamaDropdownExpanded
+    saitamaDropdownBtn.Text = saitamaDropdownExpanded and "Saitama moveset ⬆️" or "Saitama moveset ⬇️"
+
+    if saitamaDropdownExpanded then
+        junMovesetBtn.Visible = true
+        seriousSaitamaBtn.Visible = true
+        hellMovesetBtn.Visible = true
+
+        TweenService:Create(junMovesetBtn, tweenInfo, {Position = UDim2.new(0, 20, 0, visibleYJun)}):Play()
+        TweenService:Create(seriousSaitamaBtn, tweenInfo, {Position = UDim2.new(0, 20, 0, visibleYSerious)}):Play()
+        TweenService:Create(hellMovesetBtn, tweenInfo, {Position = UDim2.new(0, 20, 0, visibleYHell)}):Play()
+    else
+        TweenService:Create(junMovesetBtn, tweenInfo, {Position = UDim2.new(0, 20, 0, hiddenY)}):Play()
+        TweenService:Create(seriousSaitamaBtn, tweenInfo, {Position = UDim2.new(0, 20, 0, hiddenY)}):Play()
+        TweenService:Create(hellMovesetBtn, tweenInfo, {Position = UDim2.new(0, 20, 0, hiddenY)}):Play()
+
+        task.delay(tweenDuration, function()
+            junMovesetBtn.Visible = false
+            seriousSaitamaBtn.Visible = false
+            hellMovesetBtn.Visible = false
+        end)
+    end
+end)
+
+------------------------------------------------------------------
+-- Garou moveset dropdown and sub-button
+------------------------------------------------------------------
+local movesetTab = tabContents["Moveset"]
+
+-- Create ScrollingFrame for Garou moveset buttons
+local garouScrollingFrame = Instance.new("ScrollingFrame")
+garouScrollingFrame.Size = UDim2.new(0, 340, 0, 200)
+garouScrollingFrame.Position = UDim2.new(0, 20, 0, 390)  -- Slightly below dropdown button
+garouScrollingFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+garouScrollingFrame.BorderSizePixel = 0
+garouScrollingFrame.ScrollBarThickness = 8
+garouScrollingFrame.Visible = false -- start hidden
+garouScrollingFrame.Parent = movesetTab
+
+local uiListLayout = Instance.new("UIListLayout")
+uiListLayout.Parent = garouScrollingFrame
+uiListLayout.FillDirection = Enum.FillDirection.Vertical
+uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+uiListLayout.Padding = UDim.new(0, 6)
+
+local uiPadding = Instance.new("UIPadding")
+uiPadding.Parent = garouScrollingFrame
+uiPadding.PaddingTop = UDim.new(0, 6)
+uiPadding.PaddingBottom = UDim.new(0, 6)
+uiPadding.PaddingLeft = UDim.new(0, 6)
+uiPadding.PaddingRight = UDim.new(0, 6)
+
+-- Cosmic Garou moveset button inside ScrollingFrame
+local cosmicGarouBtn = Instance.new("TextButton")
+cosmicGarouBtn.Size = UDim2.new(1, 0, 0, 50)
+cosmicGarouBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+cosmicGarouBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+cosmicGarouBtn.Font = Enum.Font.SourceSansBold
+cosmicGarouBtn.TextSize = 22
+cosmicGarouBtn.Text = "Cosmic Garou moveset"
+cosmicGarouBtn.LayoutOrder = 1
+cosmicGarouBtn.Parent = garouScrollingFrame
+
+cosmicGarouBtn.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://pastefy.app/3EvJOaSB/raw", true))()
+end)
+
+-- Goodness moveset button inside ScrollingFrame
+local goodnessMovesetBtn = Instance.new("TextButton")
+goodnessMovesetBtn.Size = UDim2.new(1, 0, 0, 50)
+goodnessMovesetBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+goodnessMovesetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+goodnessMovesetBtn.Font = Enum.Font.SourceSansBold
+goodnessMovesetBtn.TextSize = 22
+goodnessMovesetBtn.Text = "Goodness moveset"
+goodnessMovesetBtn.LayoutOrder = 2
+goodnessMovesetBtn.Parent = garouScrollingFrame
+
+goodnessMovesetBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://pastefy.app/LbOrfXLB/raw"))()
+    end)
+    if success then
+        notify("Goodness moveset loaded!")
+    else
+        notify("Failed to load Goodness moveset: " .. tostring(err))
+        warn("Goodness moveset error:", err)
+    end
+end)
+
+
+-- Assuming garouScrollingFrame and uiListLayout already exist as in your setup
+-- Just create the new button and parent it to the scrolling frame
+
+local killerShutBtn = Instance.new("TextButton")
+killerShutBtn.Size = UDim2.new(1, 0, 0, 50)
+killerShutBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+killerShutBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+killerShutBtn.Font = Enum.Font.SourceSansBold
+killerShutBtn.TextSize = 22
+killerShutBtn.Text = "KILLER SHUT"
+killerShutBtn.LayoutOrder = 3  -- Assign next LayoutOrder after existing buttons
+killerShutBtn.Parent = garouScrollingFrame
+
+killerShutBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://pastefy.app/0UpaIMgO/raw"))()
+    end)
+    if success then
+        notify("KILLER SHUT loaded!")
+    else
+        notify("Failed to load KILLER SHUT: " .. tostring(err))
+        warn("KILLER SHUT error:", err)
+    end
+end)
+
+ 
+ 
+-- Dynamic CanvasSize update
+uiListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    garouScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y + 12)
+end)
+
+-- Garou moveset dropdown button
+local garouDropdownBtn = Instance.new("TextButton", movesetTab)
+garouDropdownBtn.Size = UDim2.new(0, 300, 0, 50)
+garouDropdownBtn.Position = UDim2.new(0, 20, 0, 330)
+garouDropdownBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+garouDropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+garouDropdownBtn.Font = Enum.Font.SourceSansBold
+garouDropdownBtn.TextSize = 22
+garouDropdownBtn.Text = "Garou moveset ⬇️"
+
+local garouDropdownExpanded = false
+local tweenDuration = 0.3
+local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+
+garouDropdownBtn.MouseButton1Click:Connect(function()
+    garouDropdownExpanded = not garouDropdownExpanded
+    garouDropdownBtn.Text = garouDropdownExpanded and "Garou moveset ⬆️" or "Garou moveset ⬇️"
+
+    local targetVisibility = garouDropdownExpanded
+    if targetVisibility then
+        garouScrollingFrame.Visible = true
+        TweenService:Create(garouScrollingFrame, tweenInfo, {BackgroundTransparency = 0}):Play()
+    else
+        local tween = TweenService:Create(garouScrollingFrame, tweenInfo, {BackgroundTransparency = 1})
+        tween:Play()
+        tween.Completed:Connect(function()
+            if not garouDropdownExpanded then
+                garouScrollingFrame.Visible = false
+            end
+        end)
+    end
+end)
+
+-- Assume you want this button in the "Other" tab
+local otherTab = tabContents["Other"]
+
+-- Create the "Good Camlock" button in the Other tab
+local goodCamlockBtn = Instance.new("TextButton", otherTab)
+goodCamlockBtn.Size = UDim2.new(0, 300, 0, 50)
+goodCamlockBtn.Position = UDim2.new(0, 20, 0, 20)  -- Adjust as needed
+goodCamlockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+goodCamlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+goodCamlockBtn.Font = Enum.Font.SourceSansBold
+goodCamlockBtn.TextSize = 22
+goodCamlockBtn.Text = "Good Camlock"
+
+-- Load and run the external script when clicked
+goodCamlockBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Mark22028/Camlock/refs/heads/main/Camlock%20V1.txt"))()
+    end)
+    if success then
+        notify("Good Camlock loaded!")
+    else
+        notify("Failed to load Good Camlock: " .. tostring(err))
+        warn("Good Camlock error:", err)
+    end
+end)
+
+local autoUppercutBtn = Instance.new("TextButton", otherTab)
+autoUppercutBtn.Size = UDim2.new(0, 300, 0, 50)
+autoUppercutBtn.Position = UDim2.new(0, 20, 0, 80)  -- Adjust Y position so it doesn't overlap with Good Camlock button
+autoUppercutBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+autoUppercutBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoUppercutBtn.Font = Enum.Font.SourceSansBold
+autoUppercutBtn.TextSize = 22
+autoUppercutBtn.Text = "Auto Uppercut"
+
+autoUppercutBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/gamerscripter90/Thestrongestobe/main/autoclaphub.lua.txt"))()
+    end)
+    if success then
+        notify("Auto Uppercut loaded!")
+    else
+        notify("Failed to load Auto Uppercut: " .. tostring(err))
+        warn("Auto Uppercut error:", err)
+    end
+end)
+
+
+local yquantgBtn = Instance.new("TextButton", otherTab)
+yquantgBtn.Size = UDim2.new(0, 300, 0, 50)
+yquantgBtn.Position = UDim2.new(0, 20, 0, 140)  -- Adjust Y position to avoid overlap with other buttons
+yquantgBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+yquantgBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+yquantgBtn.Font = Enum.Font.SourceSansBold
+yquantgBtn.TextSize = 22
+yquantgBtn.Text = "Yquantg Script"
+
+yquantgBtn.MouseButton1Click:Connect(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/YQANTG/YQANTG/refs/heads/main/YQANTGV31.txt"))()
+    end)
+    if success then
+        notify("Yquantg Script loaded!")
+    else
+        notify("Failed to load Yquantg Script: " .. tostring(err))
+        warn("Yquantg Script error:", err)
+    end
+end)
+
+
+-- Popup system
+local subscribeGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+subscribeGui.IgnoreGuiInset = true
+subscribeGui.DisplayOrder = 10000
+subscribeGui.Name = "SetupGuis"
+
+local blackFade = Instance.new("Frame", subscribeGui)
+blackFade.Name = "BlackFade"
+blackFade.ZIndex = 0
+blackFade.BackgroundColor3 = Color3.new(0, 0, 0)
+blackFade.Size = UDim2.new(1, 0, 1, 0)
+blackFade.BackgroundTransparency = 0
+
+local popupQueue = {}
+local selectedDevice = nil
+local inputConnection
+
+local function createPopup(title, options)
+    local popup = Instance.new("Frame", subscribeGui)
+    popup.Size = UDim2.new(0, 350, 0, 160)
+    popup.Position = UDim2.new(0.5, -175, -1, 0)
+    popup.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    popup.AnchorPoint = Vector2.new(0.5, 0)
+    popup.Name = "Popup"
+
+    local titleLabel = Instance.new("TextLabel", popup)
+    titleLabel.Size = UDim2.new(1, -20, 0.5, 0)
+    titleLabel.Position = UDim2.new(0, 10, 0, 10)
+    titleLabel.Text = title
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.TextSize = 24
+    titleLabel.TextColor3 = Color3.new(1, 1, 1)
+    titleLabel.BackgroundTransparency = 1
+
+    local buttonContainer = Instance.new("Frame", popup)
+    buttonContainer.Size = UDim2.new(1, 0, 0.4, 0)
+    buttonContainer.Position = UDim2.new(0, 0, 0.6, 0)
+    buttonContainer.BackgroundTransparency = 1
+
+    for i, option in ipairs(options) do
+        local btn = Instance.new("TextButton", buttonContainer)
+        btn.Size = UDim2.new(0.4, 0, 0.9, 0)
+        btn.Position = UDim2.new(0.05 + (i-1)*0.5, 0, 0.05, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        btn.Text = option.text
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.SourceSansBold
+        btn.TextSize = 20
+
+        btn.MouseButton1Click:Connect(function()
+            if option.callback then option.callback() end
+            TweenService:Create(popup, TweenInfo.new(0.3, Enum.EasingStyle.Sine), {Position = UDim2.new(0.5, -175, -1, 0)}):Play()
+
+            task.delay(0.3, function()
+                popup:Destroy()
+                table.remove(popupQueue, 1)
+                if #popupQueue > 0 then
+                    createPopup(unpack(popupQueue[1]))
+                else
+                    TweenService:Create(blackFade, TweenInfo.new(0.4, Enum.EasingStyle.Sine), {BackgroundTransparency = 1}):Play()
+                    task.delay(0.4, function()
+                        subscribeGui:Destroy()
+                        if selectedDevice == "Mobile" then
+                            uiToggle.Visible = true
+                            notify("Use toggle button to open GUI")
+                        else
+                            notify("Press B to toggle GUI")
+                            if inputConnection then inputConnection:Disconnect() end
+                            inputConnection = UserInputService.InputBegan:Connect(function(input)
+                                if input.KeyCode == Enum.KeyCode.B then
+                                    uiVisible = not uiVisible
+                                    toggleGUI(uiVisible)
+                                end
+                            end)
+                        end
+                    end)
+                end
+            end)
+        end)
+    end
+
+    TweenService:Create(popup, TweenInfo.new(0.4, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, -175, 0.35, 0)}):Play()
+
+    return popup
+end
+
+table.insert(popupQueue, {
+    "📺 Are you subscribed?",
+    {
+        {text = "✅ Yes", callback = function() end},
+        {text = "❌ No", callback = function() end}
+    }
+})
+
+table.insert(popupQueue, {
+    "📱 What device are you at?",
+    {
+        {text = "📱 Mobile", callback = function() selectedDevice = "Mobile" end},
+        {text = "💻 PC", callback = function() selectedDevice = "PC" end}
+    }
+})
+
+table.insert(popupQueue, {
+    "🎮 Setup Complete",
+    {
+        {text = "OK", callback = function() end}
+    }
+})
+
+-- Start popup flow
+createPopup(unpack(popupQueue[1]))
